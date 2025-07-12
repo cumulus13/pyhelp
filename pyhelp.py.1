@@ -1,0 +1,358 @@
+#!/usr/bin/env python3
+"""
+Enhanced Python Help Tool - Minimalist help for Python modules
+Author: Enhanced version with colors, icons, and progress bars
+License: MIT
+"""
+
+import os
+import sys
+import time
+import importlib
+import subprocess
+from pathlib import Path
+from typing import Optional, List, Any
+import threading
+
+# Color constants
+class Colors:
+    """ANSI color codes for terminal output"""
+    RESET = '\033[0m'
+    BOLD = '\033[1m'
+    DIM = '\033[2m'
+    
+    # Standard colors
+    BLACK = '\033[30m'
+    RED = '\033[31m'
+    GREEN = '\033[32m'
+    YELLOW = '\033[33m'
+    BLUE = '\033[34m'
+    MAGENTA = '\033[35m'
+    CYAN = '\033[36m'
+    WHITE = '\033[37m'
+    
+    # Bright colors
+    BRIGHT_RED = '\033[91m'
+    BRIGHT_GREEN = '\033[92m'
+    BRIGHT_YELLOW = '\033[93m'
+    BRIGHT_BLUE = '\033[94m'
+    BRIGHT_MAGENTA = '\033[95m'
+    BRIGHT_CYAN = '\033[96m'
+    BRIGHT_WHITE = '\033[97m'
+
+class Icons:
+    """Unicode icons for better visual representation"""
+    PYTHON = '🐍'
+    SEARCH = '🔍'
+    SUCCESS = '✅'
+    ERROR = '❌'
+    WARNING = '⚠️'
+    INFO = 'ℹ️'
+    LOADING = '⏳'
+    FOLDER = '📁'
+    FILE = '📄'
+    GEAR = '⚙️'
+    ROCKET = '🚀'
+    BOOK = '📚'
+    STAR = '⭐'
+
+class ProgressBar:
+    """Simple progress bar for terminal"""
+    def __init__(self, total: int, prefix: str = '', suffix: str = '', length: int = 50):
+        self.total = total
+        self.prefix = prefix
+        self.suffix = suffix
+        self.length = length
+        self.current = 0
+        self.start_time = time.time()
+        
+    def update(self, current: int = None):
+        if current is not None:
+            self.current = current
+        else:
+            self.current += 1
+            
+        percent = (self.current / self.total) * 100
+        filled = int(self.length * self.current // self.total)
+        bar = '█' * filled + '-' * (self.length - filled)
+        
+        elapsed = time.time() - self.start_time
+        eta = (elapsed / self.current) * (self.total - self.current) if self.current > 0 else 0
+        
+        print(f'\r{self.prefix} |{bar}| {percent:.1f}% {self.suffix} ETA: {eta:.1f}s', end='')
+        
+        if self.current >= self.total:
+            print()  # New line when complete
+
+class EnhancedPyHelp:
+    """Enhanced Python Help Tool with modern features"""
+    
+    def __init__(self):
+        self.version = "2.0.0"
+        self.author = "Enhanced PyHelp"
+        self.python_paths = []
+        self.cache = {}
+        
+    def print_colored(self, text: str, color: str = Colors.WHITE, icon: str = '') -> None:
+        """Print colored text with optional icon"""
+        print(f"{color}{icon} {text}{Colors.RESET}")
+        
+    def print_header(self) -> None:
+        """Print application header"""
+        print(f"\n{Colors.BOLD}{Colors.BRIGHT_BLUE}{'='*70}{Colors.RESET}")
+        print(f"{Colors.BOLD}{Colors.BRIGHT_CYAN}{Icons.PYTHON} Enhanced Python Help Tool v{self.version} {Icons.ROCKET}{Colors.RESET}")
+        print(f"{Colors.BOLD}{Colors.BRIGHT_BLUE}{'='*70}{Colors.RESET}\n")
+        
+    def show_usage(self) -> None:
+        """Show usage information"""
+        filename = Path(sys.argv[0]).name
+        self.print_colored("Usage:", Colors.BRIGHT_YELLOW, Icons.INFO)
+        self.print_colored(f"  {filename} [module/module.function/module.class]", Colors.WHITE)
+        self.print_colored("\nExamples:", Colors.BRIGHT_YELLOW, Icons.BOOK)
+        self.print_colored(f"  {filename} os.path", Colors.BRIGHT_GREEN)
+        self.print_colored(f"  {filename} json.loads", Colors.BRIGHT_GREEN)
+        self.print_colored(f"  {filename} collections.Counter", Colors.BRIGHT_GREEN)
+        print()
+        
+    def find_python_executables(self) -> List[str]:
+        """Find all Python executables in the system"""
+        if self.python_paths:
+            return self.python_paths
+            
+        self.print_colored("Searching for Python interpreters...", Colors.BRIGHT_BLUE, Icons.SEARCH)
+        
+        executables = []
+        search_names = ['python', 'python3', 'python.exe', 'python3.exe']
+        
+        # Check PATH
+        path_dirs = os.environ.get('PATH', '').split(os.pathsep)
+        progress = ProgressBar(len(path_dirs), prefix='Scanning PATH:', suffix='directories')
+        
+        for i, directory in enumerate(path_dirs):
+            progress.update(i + 1)
+            if not directory or not os.path.isdir(directory):
+                continue
+                
+            for name in search_names:
+                exe_path = os.path.join(directory, name)
+                if os.path.isfile(exe_path) and os.access(exe_path, os.X_OK):
+                    if exe_path not in executables:
+                        executables.append(exe_path)
+        
+        # Check common locations
+        common_paths = [
+            '/usr/bin', '/usr/local/bin', '/opt/python*/bin',
+            'C:\\Python*', 'C:\\Program Files\\Python*',
+            os.path.expanduser('~/.pyenv/versions/*/bin')
+        ]
+        
+        for path_pattern in common_paths:
+            for path in Path().glob(path_pattern):
+                if path.is_dir():
+                    for name in search_names:
+                        exe_path = path / name
+                        if exe_path.is_file() and str(exe_path) not in executables:
+                            executables.append(str(exe_path))
+        
+        # Use current Python if no others found
+        if not executables:
+            executables.append(sys.executable)
+            
+        self.python_paths = executables
+        self.print_colored(f"Found {len(executables)} Python interpreter(s)", Colors.BRIGHT_GREEN, Icons.SUCCESS)
+        return executables
+    
+    def test_python_executable(self, python_path: str) -> bool:
+        """Test if Python executable is working"""
+        try:
+            result = subprocess.run([python_path, '--version'], 
+                                  capture_output=True, text=True, timeout=5)
+            return result.returncode == 0
+        except (subprocess.TimeoutExpired, FileNotFoundError, OSError):
+            return False
+    
+    def get_working_python(self) -> Optional[str]:
+        """Get the first working Python executable"""
+        executables = self.find_python_executables()
+        
+        self.print_colored("Testing Python interpreters...", Colors.BRIGHT_BLUE, Icons.LOADING)
+        
+        for python_path in executables:
+            if self.test_python_executable(python_path):
+                version_result = subprocess.run([python_path, '--version'], 
+                                              capture_output=True, text=True)
+                version = version_result.stdout.strip() if version_result.stdout else "Unknown"
+                self.print_colored(f"Using: {python_path} ({version})", Colors.BRIGHT_GREEN, Icons.SUCCESS)
+                return python_path
+                
+        return None
+    
+    def import_module_safely(self, module_name: str) -> tuple:
+        """Safely import a module and return (module, error)"""
+        try:
+            if '.' in module_name:
+                # Handle submodules
+                parts = module_name.split('.')
+                module = importlib.import_module(parts[0])
+                obj = module
+                for part in parts[1:]:
+                    obj = getattr(obj, part)
+                return obj, None
+            else:
+                module = importlib.import_module(module_name)
+                return module, None
+        except Exception as e:
+            return None, str(e)
+    
+    def format_help_output(self, obj: Any) -> str:
+        """Format help output with better structure"""
+        import io
+        from contextlib import redirect_stdout
+        
+        # Capture help output
+        help_output = io.StringIO()
+        with redirect_stdout(help_output):
+            help(obj)
+        
+        help_text = help_output.getvalue()
+        
+        # Add some formatting
+        lines = help_text.split('\n')
+        formatted_lines = []
+        
+        for line in lines:
+            if line.startswith('Help on'):
+                formatted_lines.append(f"{Colors.BRIGHT_CYAN}{line}{Colors.RESET}")
+            elif line.startswith('NAME'):
+                formatted_lines.append(f"{Colors.BRIGHT_YELLOW}{line}{Colors.RESET}")
+            elif line.startswith('DESCRIPTION'):
+                formatted_lines.append(f"{Colors.BRIGHT_GREEN}{line}{Colors.RESET}")
+            elif line.startswith('FUNCTIONS') or line.startswith('CLASSES') or line.startswith('DATA'):
+                formatted_lines.append(f"{Colors.BRIGHT_MAGENTA}{line}{Colors.RESET}")
+            else:
+                formatted_lines.append(line)
+        
+        return '\n'.join(formatted_lines)
+    
+    def show_module_help(self, module_name: str) -> bool:
+        """Show help for a specific module"""
+        self.print_colored(f"Loading module: {module_name}", Colors.BRIGHT_BLUE, Icons.LOADING)
+        
+        # Try to import directly first (faster)
+        obj, error = self.import_module_safely(module_name)
+        
+        if obj is not None:
+            self.print_colored(f"Module loaded successfully!", Colors.BRIGHT_GREEN, Icons.SUCCESS)
+            print(f"\n{Colors.BOLD}{Colors.BRIGHT_CYAN}{Icons.BOOK} HELP DOCUMENTATION{Colors.RESET}")
+            print("=" * 70)
+            
+            # Show formatted help
+            help_text = self.format_help_output(obj)
+            print(help_text)
+            
+            # Show attributes
+            print(f"\n{Colors.BOLD}{Colors.BRIGHT_MAGENTA}{Icons.GEAR} ATTRIBUTES & METHODS{Colors.RESET}")
+            print("=" * 70)
+            
+            attributes = dir(obj)
+            public_attrs = [attr for attr in attributes if not attr.startswith('_')]
+            private_attrs = [attr for attr in attributes if attr.startswith('_')]
+            
+            if public_attrs:
+                self.print_colored("Public attributes:", Colors.BRIGHT_GREEN, Icons.STAR)
+                for i, attr in enumerate(public_attrs):
+                    color = Colors.BRIGHT_CYAN if i % 2 == 0 else Colors.CYAN
+                    print(f"  {color}{attr}{Colors.RESET}")
+                    
+            if private_attrs:
+                self.print_colored(f"\nPrivate attributes ({len(private_attrs)}):", Colors.BRIGHT_YELLOW, Icons.INFO)
+                print(f"  {Colors.DIM}{', '.join(private_attrs[:10])}{Colors.RESET}")
+                if len(private_attrs) > 10:
+                    print(f"  {Colors.DIM}... and {len(private_attrs) - 10} more{Colors.RESET}")
+            
+            return True
+        else:
+            # Fall back to subprocess method
+            self.print_colored("Trying external Python interpreter...", Colors.BRIGHT_YELLOW, Icons.WARNING)
+            return self.show_module_help_subprocess(module_name)
+    
+    def show_module_help_subprocess(self, module_name: str) -> bool:
+        """Show help using subprocess (fallback method)"""
+        python_path = self.get_working_python()
+        
+        if not python_path:
+            self.print_colored("No working Python interpreter found!", Colors.BRIGHT_RED, Icons.ERROR)
+            return False
+        
+        # Prepare the command
+        if '.' in module_name:
+            parts = module_name.split('.')
+            cmd = f"import {parts[0]}; help({module_name}); print('\\n' + '='*50 + '\\nATTRIBUTES:\\n' + '='*50); print(dir({module_name}))"
+        else:
+            # Handle built-in types
+            builtins = ['dict', 'list', 'str', 'int', 'float', 'bool', 'tuple', 'set']
+            if module_name in builtins:
+                cmd = f"help({module_name}); print('\\n' + '='*50 + '\\nATTRIBUTES:\\n' + '='*50); print(dir({module_name}))"
+            else:
+                cmd = f"import {module_name}; help({module_name}); print('\\n' + '='*50 + '\\nATTRIBUTES:\\n' + '='*50); print(dir({module_name}))"
+        
+        try:
+            self.print_colored("Executing help command...", Colors.BRIGHT_BLUE, Icons.LOADING)
+            result = subprocess.run([python_path, '-c', cmd], 
+                                  capture_output=True, text=True, timeout=30)
+            
+            if result.returncode == 0:
+                self.print_colored("Help generated successfully!", Colors.BRIGHT_GREEN, Icons.SUCCESS)
+                print(f"\n{Colors.BOLD}{Colors.BRIGHT_CYAN}{Icons.BOOK} HELP OUTPUT{Colors.RESET}")
+                print("=" * 70)
+                print(result.stdout)
+                return True
+            else:
+                self.print_colored("Error generating help:", Colors.BRIGHT_RED, Icons.ERROR)
+                print(f"{Colors.BRIGHT_RED}{result.stderr}{Colors.RESET}")
+                return False
+                
+        except subprocess.TimeoutExpired:
+            self.print_colored("Help command timed out!", Colors.BRIGHT_RED, Icons.ERROR)
+            return False
+        except Exception as e:
+            self.print_colored(f"Unexpected error: {str(e)}", Colors.BRIGHT_RED, Icons.ERROR)
+            return False
+    
+    def run(self) -> None:
+        """Main application entry point"""
+        self.print_header()
+        
+        if len(sys.argv) < 2:
+            self.show_usage()
+            return
+        
+        module_name = sys.argv[1]
+        
+        self.print_colored(f"Requested module: {module_name}", Colors.BRIGHT_CYAN, Icons.INFO)
+        
+        start_time = time.time()
+        success = self.show_module_help(module_name)
+        end_time = time.time()
+        
+        print(f"\n{Colors.BOLD}{Colors.BRIGHT_BLUE}{'='*70}{Colors.RESET}")
+        
+        if success:
+            self.print_colored(f"Help completed in {end_time - start_time:.2f} seconds", 
+                             Colors.BRIGHT_GREEN, Icons.SUCCESS)
+        else:
+            self.print_colored("Failed to generate help", Colors.BRIGHT_RED, Icons.ERROR)
+            self.print_colored("Please check the module name and try again", Colors.BRIGHT_YELLOW, Icons.WARNING)
+
+def main():
+    """Main function"""
+    try:
+        app = EnhancedPyHelp()
+        app.run()
+    except KeyboardInterrupt:
+        print(f"\n{Colors.BRIGHT_YELLOW}{Icons.WARNING} Operation cancelled by user{Colors.RESET}")
+    except Exception as e:
+        print(f"\n{Colors.BRIGHT_RED}{Icons.ERROR} Unexpected error: {str(e)}{Colors.RESET}")
+
+if __name__ == "__main__":
+    main()
