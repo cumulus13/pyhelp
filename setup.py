@@ -79,7 +79,7 @@ setup(
     python_requires=">=3.7",
     install_requires=[
         "rich>=10.0.0",
-        "rich_argparse",
+        "licface"
     ],
     entry_points = {
         "console_scripts":
