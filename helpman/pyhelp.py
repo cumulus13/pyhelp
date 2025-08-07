@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 Enhanced Python Help Tool with Rich Library - Beautiful terminal output
-Author: Enhanced version with Rich library support
+Author: Hadi Cahyadi (cumulus13@gmail.com)
 License: MIT
 """
 
@@ -17,9 +17,9 @@ import io
 from contextlib import redirect_stdout
 import argparse
 import inspect
-import shutil
+# import shutil
 from licface import CustomRichHelpFormatter
-
+# from textwrap import wrap
 try:
     from rich.console import Console
     from rich.panel import Panel
@@ -92,7 +92,7 @@ class EnhancedPyHelp:
     def get_width(self) -> int:
         """Get terminal width for code display"""
         try:
-            columns = shutil.get_terminal_size().columns
+            columns = os.get_terminal_size()[0]
             return min(columns - 4, 120)  # Leave some margin and cap at 120
         except:
             return 100  # Default width
@@ -415,15 +415,16 @@ class EnhancedPyHelp:
         with redirect_stdout(help_output):
             help(obj)
         
+        # help_text = "\n".join(wrap(help_output.getvalue(), os.get_terminal_size()[0] - 2))
         help_text = help_output.getvalue()
         
         # Create syntax highlighted help
         help_panel = Panel(
-            Syntax(help_text, "restructuredtext", theme='fruity'),
+            Syntax(help_text, "restructuredtext", theme='fruity', word_wrap = True, code_width = os.get_terminal_size()[0] - 5),
             title="📖 Help Documentation",
             title_align="left",
             style="bright_blue",
-            box=box.ROUNDED
+            box=box.ROUNDED,
         )
         
         self.console.print(help_panel)
@@ -627,7 +628,7 @@ class EnhancedPyHelp:
     def create_argument_parser(self) -> argparse.ArgumentParser:
         """Create and configure argument parser"""
         parser = argparse.ArgumentParser(
-            prog='pyhelp',
+            prog='pyhelp/helpman',
             description='🐍 Enhanced Python Help Tool with Rich formatting',
             formatter_class=CustomRichHelpFormatter,
             epilog="""
