@@ -38,7 +38,7 @@ Replace `<object_name>` with the name of the Python function, class, or object y
 
 
 ```bash
-Usage: pyhelp/helpman [-h] [-s] [-i] [-v] module
+Usage: pyhelp/helpman [-h] [-s] [-a] [-i] [-v] [module ...]
 
 🐍 Enhanced Python Help Tool with Rich formatting
 
@@ -48,6 +48,7 @@ Positional Arguments:
 Options:
   -h, --help         show this help message and exit
   -s, --source       Show source code instead of help documentation
+  -a, --show-all     Show all the attributes
   -i, --interactive  Interactive mode
   -v, --version      show program's version number and exit
 

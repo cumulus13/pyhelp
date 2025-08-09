@@ -430,7 +430,7 @@ class EnhancedPyHelp:
         
         self.console.print(help_panel)
     
-    def show_attributes_with_rich(self, obj: Any) -> None:
+    def show_attributes_with_rich(self, obj: Any, show_all: bool = False) -> None:
         """Show object attributes in a beautiful Rich table"""
         if not RICH_AVAILABLE:
             print("Attributes:", dir(obj))
@@ -447,7 +447,7 @@ class EnhancedPyHelp:
         attr_table.add_column("Visibility", style="bright_green")
         
         # Add public attributes
-        for attr in public_attrs[:20]:  # Limit to first 20 for readability
+        for attr in (public_attrs if show_all else public_attrs[:20]):  # Limit to first 20 for readability
             try:
                 attr_obj = getattr(obj, attr)
                 attr_type = type(attr_obj).__name__
@@ -456,7 +456,7 @@ class EnhancedPyHelp:
                 attr_table.add_row(attr, "Unknown", "Public")
         
         # Add some private attributes
-        for attr in private_attrs[:10]:  # Limit to first 10
+        for attr in (private_attrs if show_all else private_attrs[:10]):  # Limit to first 10
             try:
                 attr_obj = getattr(obj, attr)
                 attr_type = type(attr_obj).__name__
@@ -474,10 +474,16 @@ class EnhancedPyHelp:
         summary_text.append(f"{len(private_attrs)}", style="bold yellow")
         summary_text.append(" private attributes", style="bold")
         
-        if len(public_attrs) > 20:
+        if len(public_attrs) > 20 and not show_all:
             summary_text.append(f" (showing first 20 public)", style="dim")
-        if len(private_attrs) > 10:
+        # else:
+        #     summary_text.append(f" (showing first {len(public_attrs)} public)", style="dim")
+        if len(private_attrs) > 10 and not show_all:
             summary_text.append(f" (showing first 10 private)", style="dim")
+
+        summary_text.append(f" use '-a' to show all", style="dim")
+        # else:
+        #     summary_text.append(f" (showing first {len(private_attrs)} private)", style="dim")
         
         self.console.print(Panel(summary_text, style="bright_magenta"))
     
@@ -498,7 +504,7 @@ class EnhancedPyHelp:
         except Exception as e:
             return None, str(e)
 
-    def show_module_help(self, module_name: str, show_source: bool = False) -> bool:
+    def show_module_help(self, module_name: str, show_source: bool = False, show_all: bool = False) -> bool:
         """Show help for a specific module with Rich formatting"""
         if not RICH_AVAILABLE:
             # Fallback to basic help
@@ -537,7 +543,7 @@ class EnhancedPyHelp:
                 self.format_help_with_rich(obj)
                 
                 # Show attributes
-                self.show_attributes_with_rich(obj)
+                self.show_attributes_with_rich(obj, show_all)
             
             return True
         else:
@@ -654,6 +660,12 @@ Examples:
         )
 
         parser.add_argument(
+            '-a', '--show-all',
+            action='store_true',
+            help='Show all the attributes'
+        )
+
+        parser.add_argument(
             '-i', '--interactive',
             action='store_true',
             help='Interactive mode'
@@ -703,7 +715,7 @@ Examples:
                 self.console.print(f"🎯 Target: {module_name} ({action})")
             
             start_time = time.time()
-            success = self.show_module_help(module_name, show_source)
+            success = self.show_module_help(module_name, show_source, parsed_args.show_all)
             end_time = time.time()
             
             # Show completion status
