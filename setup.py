@@ -89,7 +89,7 @@ setup(
                 f"helpman = {NAME}.pyhelp:main",
             ]
     },
-    keywords="rename with pattern and fast",
+    keywords="Help Tool Rich Beautiful terminal",
     project_urls={
         "Bug Reports": f"https://github.com/cumulus13/{SOURCE_NAME}/issues",
         "Source": f"https://github.com/cumulus13/{SOURCE_NAME}",
