@@ -15,7 +15,6 @@ Enhanced Python Help Tool with Rich Library - Beautiful terminal output
 
 ## 📦 Installation
 
-1. Clone this repository:
    ```bash
    git clone https://github.com/cumulus13/pyhelp.git
    cd pyhelp
