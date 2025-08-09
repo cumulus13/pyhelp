@@ -15,7 +15,7 @@ Enhanced Python Help Tool with Rich Library - Beautiful terminal output
 
 ## 📦 Installation
 
-   ```bash
+```bash
    git clone https://github.com/cumulus13/pyhelp.git
    cd pyhelp
    pip install .
@@ -23,7 +23,7 @@ Enhanced Python Help Tool with Rich Library - Beautiful terminal output
    # or
 
    pip install helpman
-    ```
+```
 ---
 
 ## Usage
