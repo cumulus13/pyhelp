@@ -1,14 +1,17 @@
-# 🚀 Helpman
+# 🚀 pyhelp (Helpman)
 
 Enhanced Python Help Tool with Rich Library - Beautiful terminal output
----
+
+
+`pyhelp` or `helpman` is a Python command-line tool that lets you quickly view the documentation (docstring) of Python functions, classes, or objects directly from your terminal. It helps you inspect documentation without opening source files or browsing online docs.
+
+[![Example Usage](https://github.com/cumulus13/pyhelp/raw/refs/heads/master/helpman_example_usage.gif)](https://github.com/cumulus13/pyhelp/raw/refs/heads/master/helpman_example_usage.gif)
 
 ## ✨ Features
 
-- **Rich Terminal UI** *(optional)*  
-  If the `rich` Python library is installed, enjoy colorful tables, progress bars, and interactive prompts.
-
----
+- Displays docstrings for Python functions, classes, and objects.
+- Supports searching in standard Python modules and installed third-party packages.
+- Provides clean, readable output right in the terminal.
 
 ## 📦 Installation
 
@@ -24,7 +27,16 @@ Enhanced Python Help Tool with Rich Library - Beautiful terminal output
     ```
 ---
 
-## 🏃 Usage
+## Usage
+
+After installation, use `pyhelp` in your terminal with the following syntax:
+
+```bash
+pyhelp <object_name>
+```
+
+Replace `<object_name>` with the name of the Python function, class, or object you want to view the documentation for.
+
 ```bash
 Usage: pyhelp/helpman [-h] [-s] [-v] module
 
@@ -46,6 +58,41 @@ Examples:
   pyhelp --source collections.Counter  # Show source code for Counter class
 
 ```
+
+### Examples
+
+- View docstring for the `print` function:
+
+  ```bash
+  pyhelp print
+  ```
+
+- View docstring for the `list` class:
+
+  ```bash
+  pyhelp list
+  ```
+
+- View docstring for `numpy.array` function (if `numpy` is installed):
+
+  ```bash
+  pyhelp numpy.array
+  ```
+
+If the requested object is not found directly, `pyhelp` will attempt to locate it in standard Python modules and installed third-party packages.
+
+## Contribution
+
+Contributions to improve `pyhelp` are welcome! Please fork the repository, create a new branch (`git checkout -b new-feature`), make your changes, and submit a pull request. Make sure to add tests and update documentation as needed.
+
+## License
+
+`pyhelp` is licensed under the [MIT License](LICENSE).
+
+---
+
+If you have any questions or need help, feel free to open an issue on the [GitHub repository](https://github.com/cumulus13/pyhelp/issues).
+
 
 ## author
 [Hadi Cahyadi](mailto:cumulus13@gmail.com)
