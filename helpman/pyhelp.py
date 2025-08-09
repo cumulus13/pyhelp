@@ -643,6 +643,7 @@ Examples:
         
         parser.add_argument(
             'module',
+            nargs='*',
             help='Module, function, or class to get help for (e.g., os.path, json.loads)'
         )
         
@@ -680,7 +681,12 @@ Examples:
             return
         
         self.print_header()
-        module_name = parsed_args.module
+        module_name = " ".join(parsed_args.module)
+
+        if "c " in module_name.lower().strip() or " c" in module_name.lower().strip():
+            module_name = list(filter(None, list(filter(lambda k: k.strip() != 'c', re.split(" c|c | C|C ", module_name, re.I)))))
+            module_name = module_name[0] if module_name else None
+            os.system('cls') if 'win' in sys.platform.lower() else os.system('clear')
 
         while 1:
             show_source = parsed_args.source
