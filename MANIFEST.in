@@ -11,3 +11,7 @@ global-exclude .DS_Store
 global-exclude *.log
 exclude pyhelp.py.0
 exclude pyhelp.py.1
+exclude pyhelp.py.2
+exclude pyhelp.1.py
+exclude pyhelp.1.ini
+exclude pyhelp.ini

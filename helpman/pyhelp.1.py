@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Enhanced Python Help Tool with Rich Library - Beautiful terminal output
+Enhanced Python Help Tool with Rich Library and Pager Support
 Author: Hadi Cahyadi (cumulus13@gmail.com)
 License: MIT
 """
@@ -17,6 +17,7 @@ import io
 from contextlib import redirect_stdout
 import argparse
 import inspect
+import tempfile
 # import shutil
 from licface import CustomRichHelpFormatter
 # from textwrap import wrap
@@ -32,10 +33,11 @@ try:
     from rich.align import Align
     from rich.layout import Layout
     from rich.live import Live
-    from rich.prompt import Prompt
+    from rich.prompt import Prompt, Confirm
     from rich.markdown import Markdown
     from rich import box
     from rich.traceback import install
+    from rich.pager import Pager
     RICH_AVAILABLE = True
 except ImportError:
     RICH_AVAILABLE = False
@@ -45,13 +47,15 @@ except ImportError:
             print(*args)
 
 class EnhancedPyHelp:
-    """Enhanced Python Help Tool with Rich library support"""
+    """Enhanced Python Help Tool with Rich library support and pager functionality"""
     
     def __init__(self):
-        self.version = "2.1.0"
-        self.author = "Enhanced PyHelp with Rich"
+        self.version = "2.2.0"
+        self.author = "Enhanced PyHelp with Rich and Pager"
         self.python_paths = []
         self.cache = {}
+        self.use_pager = True
+        self.pager_command = None
         
         # Initialize Rich console
         self.console = Console()
@@ -64,7 +68,112 @@ class EnhancedPyHelp:
         if not RICH_AVAILABLE:
             self.console.print("⚠️  Rich library not found. Install with: pip install rich")
             self.console.print("Falling back to basic output...\n")
+            
+        # Detect available pager
+        self.detect_pager()
     
+    def detect_pager(self):
+        """Detect available pager command"""
+        pagers = ['less', 'more', 'most', 'pg']
+        
+        # Check environment variable first
+        env_pager = os.environ.get('PAGER')
+        if env_pager:
+            self.pager_command = env_pager
+            return
+            
+        # Check for available pagers
+        for pager in pagers:
+            try:
+                result = subprocess.run(['which', pager], capture_output=True, text=True)
+                if result.returncode == 0:
+                    self.pager_command = pager
+                    return
+            except:
+                pass
+                
+        # Windows fallback
+        if os.name == 'nt':
+            self.pager_command = 'more'
+        else:
+            # Final fallback - disable pager
+            self.use_pager = False
+    
+    def get_terminal_height(self) -> int:
+        """Get terminal height"""
+        try:
+            return os.get_terminal_size().lines
+        except:
+            return 24  # Default height
+    
+    def should_use_pager(self, content: str) -> bool:
+        """Determine if content should be paged"""
+        if not self.use_pager or not self.pager_command:
+            return False
+            
+        lines = content.count('\n')
+        terminal_height = self.get_terminal_height()
+        
+        # Use pager if content is longer than 75% of terminal height
+        return lines > (terminal_height * 0.75)
+    
+    def display_with_pager(self, content: str, title: str = "Output"):
+        """Display content using system pager"""
+        if not self.should_use_pager(content):
+            # Just print normally
+            self.console.print(content)
+            return
+            
+        try:
+            # Create temporary file
+            with tempfile.NamedTemporaryFile(mode='w', suffix='.txt', delete=False) as temp_file:
+                temp_file.write(content)
+                temp_file_path = temp_file.name
+            
+            # Use pager to display
+            if self.pager_command == 'less':
+                # less with nice options
+                cmd = ['less', '-R', '-S', '-F', '-X', temp_file_path]
+            else:
+                cmd = [self.pager_command, temp_file_path]
+                
+            subprocess.run(cmd)
+            
+        except Exception as e:
+            self.console.print(f"[yellow]Pager failed ({e}), showing directly:[/yellow]")
+            self.console.print(content)
+        finally:
+            # Clean up temp file
+            try:
+                os.unlink(temp_file_path)
+            except:
+                pass
+    
+    def display_with_rich_pager(self, renderable, title: str = "Output"):
+        """Display Rich renderable with pager support"""
+        if not RICH_AVAILABLE:
+            print(str(renderable))
+            return
+            
+        # Render to string first to check length
+        with self.console.capture() as capture:
+            self.console.print(renderable)
+        content = capture.get()
+        
+        if self.should_use_pager(content):
+            # Ask user preference
+            use_pager = Confirm.ask(
+                f"[yellow]Content is long ({content.count(chr(10))} lines). Use pager?[/yellow]",
+                default=True
+            )
+            
+            if use_pager:
+                self.display_with_pager(content, title)
+                return
+        
+        # Display normally
+        self.console.print(renderable)
+
     def get_version(self):
         """
         Get the version.
@@ -111,10 +220,19 @@ class EnhancedPyHelp:
         header_text.append(" 🚀", style="bold cyan")
         
         description = Text()
-        description.append("Beautiful terminal help for Python modules", style="italic bright_blue")
+        description.append("Beautiful terminal help for Python modules with pager support", style="italic bright_blue")
+        
+        # Show pager info
+        pager_info = Text()
+        if self.use_pager and self.pager_command:
+            pager_info.append(f"📖 Pager: {self.pager_command}", style="dim green")
+        else:
+            pager_info.append("📖 Pager: disabled", style="dim red")
+        
+        header_content = header_text + "\n" + description + "\n" + pager_info
         
         header_panel = Panel(
-            Align.center(header_text + "\n" + description),
+            Align.center(header_content),
             style="bold blue",
             box=box.DOUBLE_EDGE,
             padding=(1, 2)
@@ -127,8 +245,9 @@ class EnhancedPyHelp:
         """Show usage information with Rich formatting"""
         if not RICH_AVAILABLE:
             filename = Path(sys.argv[0]).name
-            print(f"Usage: {filename} [module/module.function/module.class]")
+            print(f"Usage: {filename} [options] [module/module.function/module.class]")
             print(f"Example: {filename} os.path")
+            print(f"Example: {filename} --no-pager json.loads")
             return
             
         filename = Path(sys.argv[0]).name
@@ -140,8 +259,9 @@ class EnhancedPyHelp:
         
         usage_table.add_row(f"{filename} os.path", "Show help for os.path module")
         usage_table.add_row(f"{filename} json.loads", "Show help for json.loads function")
-        usage_table.add_row(f"{filename} collections.Counter", "Show help for Counter class")
-        usage_table.add_row(f"{filename} requests", "Show help for requests module")
+        usage_table.add_row(f"{filename} --no-pager requests", "Show help without pager")
+        usage_table.add_row(f"{filename} -s collections.Counter", "Show source code")
+        usage_table.add_row(f"{filename} --pager less requests", "Use specific pager")
         
         usage_panel = Panel(
             usage_table,
@@ -150,7 +270,7 @@ class EnhancedPyHelp:
             style="bright_yellow"
         )
         
-        self.console.print(usage_panel)
+        self.display_with_rich_pager(usage_panel, "Usage")
     
     def find_python_executables(self) -> List[str]:
         """Find all Python executables with Rich progress bar"""
@@ -294,7 +414,7 @@ class EnhancedPyHelp:
                     )
                 progress.update(task, advance=1)
         
-        self.console.print(python_table)
+        self.display_with_rich_pager(python_table, "Python Interpreters")
         
         if working_python:
             selected_text = Text()
@@ -305,13 +425,16 @@ class EnhancedPyHelp:
         return working_python
     
     def get_source(self, source: Any) -> bool:
-        """Get and display source code with Rich syntax highlighting"""
+        """Get and display source code with Rich syntax highlighting and pager"""
         if not RICH_AVAILABLE:
             try:
                 source_code = inspect.getsource(source)
                 print("Source Code:")
                 print("-" * 50)
-                print(source_code)
+                if self.should_use_pager(source_code):
+                    self.display_with_pager(source_code, "Source Code")
+                else:
+                    print(source_code)
                 print("-" * 50)
                 return True
             except Exception as e:
@@ -342,7 +465,8 @@ class EnhancedPyHelp:
                 box=box.ROUNDED
             )
             
-            self.console.print(source_panel)
+            # Use pager for source code
+            self.display_with_rich_pager(source_panel, "Source Code")
             
             # Show terminal width info
             width_info = Text()
@@ -388,6 +512,8 @@ class EnhancedPyHelp:
         except Exception as e:
             self.console.print(f"❌ Error in Python 2 fallback: {e}")
             return False
+    
+    def import_module_safely(self, module_name: str) -> tuple[Any, Optional[str]]:
         """Safely import a module and return (module, error)"""
         try:
             if '.' in module_name:
@@ -405,9 +531,18 @@ class EnhancedPyHelp:
             return None, str(e)
     
     def format_help_with_rich(self, obj: Any) -> None:
-        """Format and display help output using Rich"""
+        """Format and display help output using Rich with pager support"""
         if not RICH_AVAILABLE:
-            help(obj)
+            # Capture help output and use pager if needed
+            help_output = io.StringIO()
+            with redirect_stdout(help_output):
+                help(obj)
+            help_text = help_output.getvalue()
+            
+            if self.should_use_pager(help_text):
+                self.display_with_pager(help_text, "Help Documentation")
+            else:
+                help(obj)
             return
             
         # Capture help output
@@ -415,24 +550,28 @@ class EnhancedPyHelp:
         with redirect_stdout(help_output):
             help(obj)
         
-        # help_text = "\n".join(wrap(help_output.getvalue(), os.get_terminal_size()[0] - 2))
         help_text = help_output.getvalue()
         
         # Create syntax highlighted help
         help_panel = Panel(
-            Syntax(help_text, "restructuredtext", theme='fruity', word_wrap = True, code_width = os.get_terminal_size()[0] - 5),
+            Syntax(help_text, "restructuredtext", theme='fruity', word_wrap=True, code_width=os.get_terminal_size()[0] - 5),
             title="📖 Help Documentation",
             title_align="left",
             style="bright_blue",
             box=box.ROUNDED,
         )
         
-        self.console.print(help_panel)
+        # Use pager for help
+        self.display_with_rich_pager(help_panel, "Help Documentation")
     
     def show_attributes_with_rich(self, obj: Any) -> None:
-        """Show object attributes in a beautiful Rich table"""
+        """Show object attributes in a beautiful Rich table with pager support"""
         if not RICH_AVAILABLE:
-            print("Attributes:", dir(obj))
+            attrs_text = "Attributes: " + ", ".join(dir(obj))
+            if self.should_use_pager(attrs_text):
+                self.display_with_pager(attrs_text, "Attributes")
+            else:
+                print("Attributes:", dir(obj))
             return
             
         attributes = dir(obj)
@@ -463,7 +602,7 @@ class EnhancedPyHelp:
             except:
                 attr_table.add_row(attr, "Unknown", "Private")
         
-        self.console.print(attr_table)
+        self.display_with_rich_pager(attr_table, "Attributes")
         
         # Show summary
         summary_text = Text()
@@ -479,26 +618,9 @@ class EnhancedPyHelp:
             summary_text.append(f" (showing first 10 private)", style="dim")
         
         self.console.print(Panel(summary_text, style="bright_magenta"))
-    
-    def import_module_safely(self, module_name: str) -> tuple[Any, Optional[str]]:
-        """Safely import a module and return (module, error)"""
-        try:
-            if '.' in module_name:
-                # Handle submodules
-                parts = module_name.split('.')
-                module = importlib.import_module(parts[0])
-                obj = module
-                for part in parts[1:]:
-                    obj = getattr(obj, part)
-                return obj, None
-            else:
-                module = importlib.import_module(module_name)
-                return module, None
-        except Exception as e:
-            return None, str(e)
 
     def show_module_help(self, module_name: str, show_source: bool = False) -> bool:
-        """Show help for a specific module with Rich formatting"""
+        """Show help for a specific module with Rich formatting and pager support"""
         if not RICH_AVAILABLE:
             # Fallback to basic help
             try:
@@ -507,8 +629,16 @@ class EnhancedPyHelp:
                     if show_source:
                         self.get_source(obj)
                     else:
-                        help(obj)
-                        print("\nAttributes:", dir(obj))
+                        help_output = io.StringIO()
+                        with redirect_stdout(help_output):
+                            help(obj)
+                        help_text = help_output.getvalue()
+                        
+                        if self.should_use_pager(help_text):
+                            self.display_with_pager(help_text + "\n\nAttributes: " + str(dir(obj)), "Help")
+                        else:
+                            help(obj)
+                            print("\nAttributes:", dir(obj))
                     return True
                 else:
                     print(f"Error: {error}")
@@ -554,7 +684,7 @@ class EnhancedPyHelp:
                 return self.show_module_help_subprocess(module_name)
     
     def show_module_help_subprocess(self, module_name: str) -> bool:
-        """Show help using subprocess with Rich progress"""
+        """Show help using subprocess with Rich progress and pager support"""
         python_path = self.get_working_python()
         
         if not python_path:
@@ -587,17 +717,20 @@ class EnhancedPyHelp:
             
             if result.returncode == 0:
                 if RICH_AVAILABLE:
-                    # Show output in a nice panel
+                    # Show output in a nice panel with pager
                     output_panel = Panel(
                         result.stdout,
                         title="📋 Help Output",
                         title_align="left",
                         style="bright_green"
                     )
-                    self.console.print(output_panel)
+                    self.display_with_rich_pager(output_panel, "Help Output")
                 else:
-                    self.console.print("Help Output:")
-                    self.console.print(result.stdout)
+                    if self.should_use_pager(result.stdout):
+                        self.display_with_pager(result.stdout, "Help Output")
+                    else:
+                        self.console.print("Help Output:")
+                        self.console.print(result.stdout)
                 return True
             else:
                 if RICH_AVAILABLE:
@@ -629,7 +762,7 @@ class EnhancedPyHelp:
         """Create and configure argument parser"""
         parser = argparse.ArgumentParser(
             prog='pyhelp/helpman',
-            description='🐍 Enhanced Python Help Tool with Rich formatting',
+            description='🐍 Enhanced Python Help Tool with Rich formatting and pager support',
             formatter_class=CustomRichHelpFormatter,
             epilog="""
 Examples:
@@ -637,11 +770,14 @@ Examples:
   pyhelp json.loads                 # Show help for json.loads function
   pyhelp -s requests.get            # Show source code for requests.get
   pyhelp --source collections.Counter  # Show source code for Counter class
+  pyhelp --no-pager requests       # Disable pager for this session
+  pyhelp --pager less os.path      # Use specific pager command
             """
         )
         
         parser.add_argument(
             'module',
+            nargs='?',
             help='Module, function, or class to get help for (e.g., os.path, json.loads)'
         )
         
@@ -650,11 +786,17 @@ Examples:
             action='store_true',
             help='Show source code instead of help documentation'
         )
-
+        
         parser.add_argument(
-            '-i', '--interactive',
+            '--no-pager',
             action='store_true',
-            help='Interactive mode'
+            help='Disable pager and show output directly'
+        )
+        
+        parser.add_argument(
+            '--pager',
+            type=str,
+            help='Specify pager command to use (e.g., less, more, most)'
         )
         
         parser.add_argument(
@@ -666,67 +808,77 @@ Examples:
         return parser
     
     def run(self, args: Optional[List[str]] = None) -> None:
-        """Main application entry point with argparse"""
+        """Main application entry point with argparse and pager support"""
         parser = self.create_argument_parser()
         
         if len(sys.argv) == 1:
-            parser.print_help()
-            exit(0)
+            self.print_header()
+            self.show_usage()
+            return
+        
         # Parse arguments
         try:
             parsed_args = parser.parse_args(args)
         except SystemExit:
             return
         
+        # Handle pager options
+        if parsed_args.no_pager:
+            self.use_pager = False
+        
+        if parsed_args.pager:
+            self.pager_command = parsed_args.pager
+            self.use_pager = True
+        
+        # Check if module is provided
+        if not parsed_args.module:
+            self.print_header()
+            self.show_usage()
+            return
+        
         self.print_header()
+        
         module_name = parsed_args.module
-
-        while 1:
-            show_source = parsed_args.source
-            # Show module info
-            if RICH_AVAILABLE:
-                action = "source code" if show_source else "help"
-                module_info = Text()
-                module_info.append("🎯 Target: ", style="bold")
-                module_info.append(module_name, style="bold cyan")
-                module_info.append(f" ({action})", style="bold yellow")
-                self.console.print(Panel(module_info, style="blue"))
-            else:
-                action = "source code" if show_source else "help"
-                self.console.print(f"🎯 Target: {module_name} ({action})")
+        show_source = parsed_args.source
+        
+        # Show module info
+        if RICH_AVAILABLE:
+            action = "source code" if show_source else "help"
+            pager_status = "enabled" if self.use_pager else "disabled"
             
-            start_time = time.time()
-            success = self.show_module_help(module_name, show_source)
-            end_time = time.time()
+            module_info = Text()
+            module_info.append("🎯 Target: ", style="bold")
+            module_info.append(module_name, style="bold cyan")
+            module_info.append(f" ({action})", style="bold yellow")
+            module_info.append(f" | Pager: {pager_status}", style="dim")
             
-            # Show completion status
-            if RICH_AVAILABLE:
-                if success:
-                    completion_text = Text()
-                    completion_text.append("🎉 Operation completed in ", style="bold green")
-                    completion_text.append(f"{end_time - start_time:.2f}s", style="bold yellow")
-                    self.console.print(Panel(completion_text, style="green"))
-                else:
-                    failure_text = Text()
-                    failure_text.append("❌ Failed to complete operation", style="bold red")
-                    failure_text.append("\n💡 Please check the module name and try again", style="yellow")
-                    self.console.print(Panel(failure_text, style="red"))
+            self.console.print(Panel(module_info, style="blue"))
+        else:
+            action = "source code" if show_source else "help"
+            pager_status = "enabled" if self.use_pager else "disabled"
+            self.console.print(f"🎯 Target: {module_name} ({action}) | Pager: {pager_status}")
+        
+        start_time = time.time()
+        success = self.show_module_help(module_name, show_source)
+        end_time = time.time()
+        
+        # Show completion status
+        if RICH_AVAILABLE:
+            if success:
+                completion_text = Text()
+                completion_text.append("🎉 Operation completed in ", style="bold green")
+                completion_text.append(f"{end_time - start_time:.2f}s", style="bold yellow")
+                self.console.print(Panel(completion_text, style="green"))
             else:
-                if success:
-                    self.console.print(f"🎉 Operation completed in {end_time - start_time:.2f}s")
-                else:
-                    self.console.print("❌ Failed to complete operation")
-
-            if parsed_args.interactive:
-                self.console.print("[bold #00FFFF]q/quit/x/exit = exit/quit[/]") if RICH_AVAILABLE else print("q/quit/x/exit = exit/quit")
-                
-                q = input(": ")
-                if q:
-                    if q in ['exit', 'quit', 'x', 'q']:
-                        sys.exit(0)
-                    module_name = q
+                failure_text = Text()
+                failure_text.append("❌ Failed to complete operation", style="bold red")
+                failure_text.append("\n💡 Please check the module name and try again", style="yellow")
+                self.console.print(Panel(failure_text, style="red"))
+        else:
+            if success:
+                self.console.print(f"🎉 Operation completed in {end_time - start_time:.2f}s")
             else:
-                break
+                self.console.print("❌ Failed to complete operation")
 
 def main():
     """Main function with Rich error handling"""
