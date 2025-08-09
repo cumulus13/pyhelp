@@ -17,6 +17,7 @@ import io
 from contextlib import redirect_stdout
 import argparse
 import inspect
+import re
 # import shutil
 from licface import CustomRichHelpFormatter
 # from textwrap import wrap
@@ -722,8 +723,13 @@ Examples:
                 
                 q = input(": ")
                 if q:
-                    if q in ['exit', 'quit', 'x', 'q']:
+                    if q.lower().strip() in ['exit', 'quit', 'x', 'q']:
                         sys.exit(0)
+                    elif "c " in q.lower().strip() or " c" in q.lower().strip():
+                        q = list(filter(None, list(filter(lambda k: k.strip() != 'c', re.split(" c|c | C|C ", q, re.I)))))
+                        q = q[0] if q else None
+                        os.system('cls') if 'win' in sys.platform.lower() else os.system('clear')
+                if q:
                     module_name = q
             else:
                 break

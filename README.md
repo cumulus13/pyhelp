@@ -36,18 +36,20 @@ pyhelp <object_name>
 
 Replace `<object_name>` with the name of the Python function, class, or object you want to view the documentation for.
 
+
 ```bash
-Usage: pyhelp/helpman [-h] [-s] [-v] module
+Usage: pyhelp/helpman [-h] [-s] [-i] [-v] module
 
 🐍 Enhanced Python Help Tool with Rich formatting
 
 Positional Arguments:
-  module         Module, function, or class to get help for (e.g., os.path, json.loads)
+  module             Module, function, or class to get help for (e.g., os.path, json.loads)
 
 Options:
-  -h, --help     show this help message and exit
-  -s, --source   Show source code instead of help documentation
-  -v, --version  show program's version number and exit
+  -h, --help         show this help message and exit
+  -s, --source       Show source code instead of help documentation
+  -i, --interactive  Interactive mode
+  -v, --version      show program's version number and exit
 
 Examples:
 
@@ -57,6 +59,8 @@ Examples:
   pyhelp --source collections.Counter  # Show source code for Counter class
 
 ```
+
+You can clear the terminal while inputting a query by prefixing or suffixing with "c", e.g. "c query" or "query c".
 
 ### Examples
 
